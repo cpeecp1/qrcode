@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>即時掃碼系統</title>
+  <script src="https://unpkg.com" type="text/javascript"></script>
+  <style>
+    body { font-family: -apple-system, sans-serif; text-align: center; padding: 15px; background: #111; color: white; margin: 0; }
+    h3 { margin: 10px 0 15px; font-weight: normal; }
+    #reader { width: 100%; max-width: 400px; margin: 0 auto; border-radius: 12px; overflow: hidden; border: 2px solid #00c853; }
+    #result-box { margin: 20px auto; max-width: 400px; padding: 15px; border-radius: 8px; background: #222; font-size: 16px; line-height: 1.6; white-space: pre-line; }
+    .success { border-left: 6px solid #00c853; color: #b9f6ca; }
+    .error { border-left: 6px solid #ff5252; color: #ffcdd2; }
+    .processing { border-left: 6px solid #ffd740; color: #ffe57f; }
+  </style>
+</head>
+<body>
+  <h3>請將條碼對準掃描框</h3>
+  <div id="reader"></div>
+  <div id="result-box">正在啟動即時鏡頭...</div>
+
+  <script>
+    // 1. 請把下面這串換成你的 GAS 部署網址（/exec 結尾）
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbzzXcNmdnuV_4IswcQeBKb26_UZg4SSuOIPk1-5qVlfhDth-HTygod6PR7TDtOym5PFrw/exec";
+    
+    const html5QrCode = new Html5Qrcode("reader");
+    const resultBox = document.getElementById('result-box');
+    let isLocked = false;
+
+    function onScanSuccess(decodedText) {
+      if (isLocked) return;
+      isLocked = true;
+
+      resultBox.className = "processing";
+      resultBox.innerText = `掃描到編碼：${decodedText}\n傳送寫入中...`;
+
+      fetch(GAS_URL, {
+        method: "POST",
+        body: JSON.stringify({ code: decodedText })
+      })
+      .then(response => response.json())
+      .then(res => {
+        resultBox.className = res.success ? "success" : "error";
+        resultBox.innerText = res.message;
+        setTimeout(() => { isLocked = false; }, 1500);
+      })
+      .catch(err => {
+        resultBox.className = "error";
+        resultBox.innerText = "寫入失敗：" + err;
+        isLocked = false;
+      });
+    }
+
+    // 強制直接啟動後置鏡頭進行即時視訊掃描（不提供拍照上傳）
+    html5QrCode.start(
+      { facingMode: "environment" },
+      { fps: 15, qrbox: { width: 250, height: 180 } },
+      onScanSuccess
+    ).then(() => {
+      resultBox.innerText = "鏡頭已就緒，對準條碼自動解析";
+    }).catch((err) => {
+      resultBox.className = "error";
+      resultBox.innerText = "無法開啟鏡頭：" + err;
+    });
+  </script>
+</body>
+</html>
